@@ -1,5 +1,7 @@
 <?php
 use App\Http\Controllers\BotManController;
+use App\Http\Controllers\Controller;
+use App\Library\CustomMail;
 use ATehnix\VkClient\Client;
 use ATehnix\VkClient\Requests\Request;
 use BotMan\BotMan\BotMan;
@@ -38,6 +40,15 @@ $botman->hears("category ([0-9]+) ([0-9]+)",function($bot,$category,$page){
 
             $bot->reply($question, ["parse_mode" => "Markdown"]);
         }
+
+        $question = Question::create("Что делаем дальше?")
+            ->addButtons([
+                Button::create("Предидущая подборка")->value('category '.$category.' '.($page-1>=0?$page-1:0)),
+                Button::create("Следующая подборка")->value('category '.$category.' '.($page+1)),
+
+            ]);
+
+        $bot->reply($question,["parse_mode"=>"Markdown"]);
     }
     else {
         $question = Question::create("В данной категории товара нет!:(")
@@ -50,14 +61,7 @@ $botman->hears("category ([0-9]+) ([0-9]+)",function($bot,$category,$page){
     }
 
 
-    $question = Question::create("Что делаем дальше?")
-        ->addButtons([
-                Button::create("Предидущая подборка")->value('category '.$category.' '.($page-1>=0?$page-1:0)),
-                Button::create("Следующая подборка")->value('category '.$category.' '.($page+1)),
 
-        ]);
-
-    $bot->reply($question,["parse_mode"=>"Markdown"]);
 });
 
 $botman->hears("clear_basket",function(BotMan $bot){
@@ -75,7 +79,7 @@ $botman->hears("clear_basket",function(BotMan $bot){
 
 $botman->hears("basket",function(BotMan $bot){
     $id= $bot->getMessage()->getRecipient();
-    $basket=DB::select("SELECT `basket`.*,`products`.`price` FROM `basket` 
+    $basket=DB::select("SELECT `basket`.*,`products`.* FROM `basket` 
 LEFT JOIN `products` ON (`products`.`id`=`basket`.`product_id`)
 WHERE `basket`.`chat_id`=?",[$id]);
 
@@ -84,9 +88,8 @@ WHERE `basket`.`chat_id`=?",[$id]);
        $bot->reply("Товаров в корзине: " .count($basket));
        $sum = 0;
        for($i=0;$i<count($basket);$i++){
-           $product=DB::select("SELECT * FROM `products` WHERE `id`=?",[$basket[$i]->product_id]);
-           $sum +=$product[0]->price;
-           $bot->reply(($i+1).") _".$product[0]->title."_ *".$product[0]->price."* Руб. ",["parse_mode"=>"Markdown"] );
+           $sum +=$basket[$i]->price;
+           $bot->reply(($i+1).") _".$basket[$i]->title."_ *".$basket[$i]->price."* Руб. ",["parse_mode"=>"Markdown"] );
        }
         $bot->reply("Сумарная цена *$sum* Руб. ",["parse_mode"=>"Markdown"] );
 
@@ -123,11 +126,47 @@ $botman->hears("select_category",function(BotMan $bot){
 });
 
 $botman->hears("buy",function(BotMan $bot){
-    $id= $bot->getUser()->getId();
-    DB::Table("basket")->where("chat_id","=","$id")->get();
 
+    $id= $bot->getMessage()->getRecipient();
+    $basket=DB::select("SELECT `basket`.*,`products`.* FROM `basket` 
+LEFT JOIN `products` ON (`products`.`id`=`basket`.`product_id`)
+WHERE `basket`.`chat_id`=?",[$id]);
 
+    $message ="Товаров в корзине: " .count($basket)."\n";
+    $message .= "Пользователь ".$bot->getUser()->getFirstName()." ".$bot->getUser()->getLastName()." заказал следующее:\n";
+    if (count($basket)>=1) {
+
+        $sum = 0;
+        for ($i = 0; $i < count($basket); $i++) {
+            $sum += $basket[$i]->price;
+            $message .=($i + 1) . ") _" . $basket[$i]->title . "_ *" . $basket[$i]->price . "* Руб.\n";
+        }
+        $message .= "Общая сумма заказа:$sum Руб.\n";
+
+        $mail= new CustomMail;
+        $mail->sendEMail("Заказ товара из магазина сувениров", $message);
+    }
     $question = Question::create("Спасибо! Товар на заказ отправлен!")
+        ->addButton(Button::create("На главную")->value('main'));
+    $bot->reply($question);
+
+});
+
+$botman->hears("buy event ([0-9]+)",function(BotMan $bot,$eventId){
+    Log::info($eventId);
+    $events=DB::select("SELECT `events`.`id`,`events`.`price`,`events`.`date_start`,`news`.`title`,`news`.`image` FROM `events` LEFT JOIN `news` ON (`events`.`news_id`=`news`.`id`) WHERE `events`.`id`=?",[$eventId]);
+
+
+    $message= "Пользователь "
+        .$bot->getUser()->getFirstName()." "
+        .$bot->getUser()->getLastName()." заказал 1 билет на : "
+        .$events[0]->title."\nЦена билета:"
+        .$events[0]->price." Рублей.\n" ;
+
+    $email= new CustomMail;
+    $email->sendEMail("Заказ билетов на ", $message);
+
+    $question = Question::create("Спасибо! Для вас отложат 1 билет!\nНе забудье забрать билет в 105й")
         ->addButton(Button::create("На главную")->value('main'));
     $bot->reply($question);
 
@@ -246,9 +285,15 @@ $botman->hears("links",function(BotMan $bot) {
 
 $botman->hears("shop",function($bot) {
 
+    $id= $bot->getMessage()->getRecipient();
+    $basket=DB::select("SELECT `basket`.*,`products`.* FROM `basket` 
+LEFT JOIN `products` ON (`products`.`id`=`basket`.`product_id`)
+WHERE `basket`.`chat_id`=?",[$id]);
+
+
     $question = Question::create('*Меню магазина*')
         ->addButtons([
-            Button::create("Корзина")->value('basket'),
+            Button::create("Корзина [".count($basket)."]")->value('basket'),
             Button::create("Категории товара")->value('select_category'),
             Button::create("<<Назад")->value('main')
         ]);
@@ -289,8 +334,44 @@ $botman->hears("pay",function($bot) {
     $this->getBot()->getDriver()->loadMessages();
 });
 
-$botman->hears("events",function($bot) {
+$botman->hears("events",function(BotMan $bot) {
 
+    $events = DB::select("SELECT `events`.`id`,`events`.`description`,`events`.`price`,`events`.`date_start`,`news`.`title`,`news`.`message`,`news`.`image` FROM `events` LEFT JOIN `news` ON (`events`.`news_id`=`news`.`id`) LIMIT 5 OFFSET 0");
+
+    if (count($events)>0) {
+        foreach ($events as $e) {
+            $attachment = new Image($e->image);
+
+            $message = OutgoingMessage::create("* $e->title *  \nДата события:$e->date_start\n\n  $e->message\n _ $e->description _\nЦена:* $e->price * Руб.")
+                ->withAttachment($attachment);
+            $bot->reply($message,["parse_mode"=>"Markdown"]);
+
+            $question = Question::create("Заказать билет?")
+                ->addButtons([
+                    Button::create("Заказать")->value('buy event '.$e->id),
+                ]);
+
+            $bot->reply($question, ["parse_mode" => "Markdown"]);
+        }
+
+        $question = Question::create("Что делаем дальше?!")
+            ->addButtons([
+                Button::create("Главное меню")->value('main'),
+                Button::create("Следующее событие")->value('next event 5'),
+                Button::create("Предыдущее событие")->value('prev event 0'),
+            ]);
+
+        // $bot->getUser()->
+        $bot->reply($question, ["parse_mode" => "Markdown"]);
+    }
+    else {
+        $question = Question::create("*Меню событий*\nСобытий на текущий момент нет!")
+            ->addButtons([
+                Button::create("Главное меню")->value('main')
+            ]);
+
+        $bot->reply($question, ["parse_mode" => "Markdown"]);
+    }
 });
 
 $botman->hears("news",function($bot){

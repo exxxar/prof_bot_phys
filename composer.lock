@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#composer-lock-the-lock-file",
         "This file is @generated automatically"
     ],
-    "content-hash": "be9a9827d5cc0a84d54b56e5b2664beb",
+    "content-hash": "1b5e44796d05c3dedac1715683fcabfb",
     "packages": [
         {
             "name": "atehnix/vk-client",

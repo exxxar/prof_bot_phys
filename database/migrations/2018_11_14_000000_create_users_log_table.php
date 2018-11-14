@@ -2,16 +2,16 @@
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Database\Migrations\Migration;
-class CreateEventsTable extends Migration
+class CreateUsersLogTable extends Migration
 {
     /**
      * Schema table name to migrate
      * @var string
      */
-    public $set_schema_table = 'events';
+    public $set_schema_table = 'users_log';
     /**
      * Run the migrations.
-     * @table events
+     * @table users_log
      *
      * @return void
      */
@@ -21,11 +21,12 @@ class CreateEventsTable extends Migration
         Schema::create($this->set_schema_table, function (Blueprint $table) {
             $table->engine = 'InnoDB';
             $table->increments('id');
-            $table->integer('news_id')->nullable();
-
-            $table->string('description')->nullable();
-            $table->double('price')->nullable();
-            $table->dateTime('date_start')->nullable();
+            $table->string('name', 100)->nullable();
+            $table->string('nickname', 45)->nullable();
+            $table->integer('chat_id')->nullable();
+            $table->string('info')->nullable();
+            $table->string('ip')->nullable();
+            $table->string('description',1000)->nullable();
             $table->timestamps();
         });
     }
@@ -35,8 +36,8 @@ class CreateEventsTable extends Migration
      *
      * @return void
      */
-     public function down()
-     {
-       Schema::dropIfExists($this->set_schema_table);
-     }
+    public function down()
+    {
+        Schema::dropIfExists($this->set_schema_table);
+    }
 }

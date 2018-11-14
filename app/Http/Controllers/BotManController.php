@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Conversations\MainConversation;
+use App\UsersLog;
 use BotMan\BotMan\BotMan;
 use BotMan\BotMan\Messages\Attachments\Image;
 use BotMan\BotMan\Messages\Outgoing\Actions\Button;
@@ -10,6 +11,7 @@ use BotMan\BotMan\Messages\Outgoing\OutgoingMessage;
 use BotMan\BotMan\Messages\Outgoing\Question;
 use Illuminate\Http\Request;
 use App\Conversations\ExampleConversation;
+use Illuminate\Support\Facades\Log;
 
 class BotManController extends Controller
 {
@@ -31,12 +33,19 @@ class BotManController extends Controller
         return view('tinker');
     }
 
-    /**
-     * Loaded through routes/botman.php
-     * @param  BotMan $bot
-     */
-    public function startConversation(BotMan $bot)
-    {
+
+
+    public function startConversation(BotMan $bot){
+
+
+        $userlog = new UsersLog;
+        $userlog->name = $bot->getUser()->getFirstName()." ".$bot->getUser()->getLastName();
+        $userlog->nickname = $bot->getUser()->getUsername();
+        $userlog->chat_id = $bot->getMessage()->getRecipient();
+        $userlog->info =  "";
+        $userlog->ip = $this->getIp();
+        $userlog->description = "стартовый экран";
+        $userlog->save();
 
         $attachment = new Image('https://pp.userapi.com/c845523/v845523778/1014cd/LxaIrZvzqGk.jpg');
         $message = OutgoingMessage::create('Физико-Технический факультет')
